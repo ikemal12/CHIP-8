@@ -22,7 +22,7 @@ class Chip8 {
         
         Chip8();
         void LoadROM(char const* filename);
-
+        void Cycle();
 
     private:
         std::default_random_engine randGen;
@@ -79,6 +79,9 @@ class Chip8 {
             Chip8Func table8[0xE + 1];
             Chip8Func tableE[0xE + 1];
             Chip8Func tableF[0x65 + 1];
+
+        uint8_t delayTimer{};
+        uint8_t soundTimer{};
 
 };
     
