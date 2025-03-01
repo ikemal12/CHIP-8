@@ -269,14 +269,6 @@ void Chip8::OP_8xy6() {
     registers[Vx] >>= 1;
 }
 
-void Chip8::OP_8xy6() {
-    uint8_t Vx = (opcode & 0x0F00u) >> 8u;
-
-    registers[0xF] = (registers[Vx] & 0x1u);
-
-    registers[Vx] >>= 1;
-}
-
 void Chip8::OP_8xy7() {
     uint8_t Vx = (opcode & 0x0F00u) >> 8u;
     uint8_t Vy = (opcode & 0x00F0u) >> 4u;
