@@ -1,7 +1,7 @@
 #pragma once
 
-#include <SDL.h>
-#include <glad/gl.h>
+#include <SDL2/SDL.h>
+#include "glad/gl.h"
 #include <cstdint>
 
 class Platform {
@@ -20,4 +20,4 @@ class Platform {
         SDL_Texture* texture{};
         SDL_GLContext gl_context{};
         GLuint framebuffer_texture;
-}
+};

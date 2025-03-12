@@ -1,6 +1,6 @@
 #include "platform.hpp"
 #include <SDL.h>
-#include <glad/gl.h>
+#include "glad/gl.h"
 
 Platform::Platform(char const* title, int windowWidth, int windowHeight, int textureWidth, int textureHeight) {
 

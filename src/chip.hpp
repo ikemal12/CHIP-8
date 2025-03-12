@@ -75,9 +75,6 @@ class Chip8 {
         void TableF();
 
         void OP_NULL();
-        void OP_Table8();
-        void OP_TableE();
-        void OP_TableF();
 
         typedef void (Chip8::*Chip8Func)();
             Chip8Func table[0xF + 1];
