@@ -4,6 +4,8 @@
 #include <fstream>
 #include <chrono>
 #include <random>
+#include <iostream>
+#include <algorithm>
 
 const unsigned int START_ADDRESS = 0x200;
 const unsigned int FONTSET_SIZE = 80;
@@ -30,67 +32,211 @@ uint8_t fontset[FONTSET_SIZE] = {
 
 
 void Chip8::LoadROM(char const* filename) {
+    std::cout << "Attempting to load ROM: " << filename << "\n";
+
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
-
-    if (file.is_open()) {
-        std::streampos size = file.tellg();
-        char* buffer = new char[size];
-
-        file.seekg(0, std::ios::beg);
-        file.read(buffer, size);
-        file.close();
-
-        for (long i=0; i<size; ++i) {
-            memory[START_ADDRESS + i] = buffer[i];
-        }
-        delete[] buffer;
+    
+    if (!file.is_open()) {
+        std::cerr << "ERROR: Failed to open ROM file\n";
+        return;
     }
+
+    std::streampos size = file.tellg();
+    std::cout << "ROM file size: " << size << " bytes\n";
+
+    if (size <= 0) {
+        std::cerr << "ERROR: ROM file is empty or invalid\n";
+        file.close();
+        return;
+    }
+
+    if (size > (4096 - START_ADDRESS)) {
+        std::cerr << "WARNING: ROM size (" << size << " bytes) exceeds available memory (" 
+                  << (4096 - START_ADDRESS) << " bytes)\n";
+    }
+
+    char* buffer = new char[size];
+    file.seekg(0, std::ios::beg);
+    file.read(buffer, size);
+    file.close();
+
+    std::cout << "Loading ROM into memory at address 0x" << std::hex << START_ADDRESS << "\n";
+    std::cout << "First 16 bytes of ROM:\n";
+
+    for (long i = 0; i < std::min<uint16_t>(size, 16L); ++i) {
+        memory[START_ADDRESS + i] = buffer[i];
+        printf("%02X ", static_cast<unsigned char>(buffer[i]));
+        if ((i + 1) % 8 == 0) std::cout << " ";
+    }
+    std::cout << "\n";
+
+    // Load the entire ROM
+    for (long i = 0; i < size; ++i) {
+        memory[START_ADDRESS + i] = buffer[i];
+    }
+
+    // Verify the last few bytes
+    std::cout << "Last 16 bytes of ROM:\n";
+    long start = std::max<uint16_t>(0L, size - 16);
+    for (long i = start; i < size; ++i) {
+        printf("%02X ", static_cast<unsigned char>(buffer[i]));
+        if ((i + 1) % 8 == 0) std::cout << " ";
+    }
+    std::cout << "\n";
+
+    delete[] buffer;
+    std::cout << "ROM loaded successfully\n";
+
+    // Additional verification
+    std::cout << "Verifying memory copy (first 16 bytes):\n";
+    for (long i = 0; i < std::min<uint16_t>(size, 16L); ++i) {
+        printf("%02X ", memory[START_ADDRESS + i]);
+        if ((i + 1) % 8 == 0) std::cout << " ";
+    }
+    std::cout << "\n";
 }
 
 void Chip8::Cycle() {
+    pc = std::clamp(pc, static_cast<uint16_t>(START_ADDRESS), static_cast<uint16_t>(MEMORY_SIZE - 2));
     opcode = (memory[pc] << 8u) | memory[pc + 1];
+    printf("PC: %04X OP: %04X I: %04X SP: %X DT: %d ST: %d\n", 
+           pc, opcode, index, sp, delayTimer, soundTimer);
+    
     pc += 2;
-    ((*this).*(table[(opcode & 0xF000u) >> 12u]))();
+    
+    uint8_t op_high = (opcode & 0xF000) >> 12;
+    if (op_high > 0xF || !table[op_high]) {
+        HandleInvalidOpcode();
+        return;
+    }
 
-    if (delayTimer > 0) {
-        --delayTimer;
+    if (op_high == 0xF && (opcode & 0x00FF) > 0x65) {
+        HandleInvalidOpcode();
+        return;
     }
-    if (soundTimer > 0) {
-        --soundTimer;
+
+    if (sp >= 16) {
+        std::cerr << "STACK OVERFLOW! Resetting...\n";
+        Reset();
+        return;
     }
+
+    (this->*table[op_high])();
+    delayTimer = std::max(0, delayTimer - 1);
+    soundTimer = std::max(0, soundTimer - 1);
+}
+
+void Chip8::HandleInvalidOpcode() {
+    std::cerr << "INVALID OPCODE: " << std::hex << opcode 
+              << " at PC=" << (pc-2) << "\n";
+    pc = START_ADDRESS;
+}
+
+void Chip8::Reset() {
+    pc = START_ADDRESS;
+    sp = 0;
+    opcode = 0;
+    index = 0;
+    memset(registers, 0, sizeof(registers));
+    memset(stack, 0, sizeof(stack));
 }
 
 void Chip8::Table0() {
-    ((*this).*(table0[opcode & 0x000Fu]))();
+    uint8_t op_low = opcode & 0x000Fu;
+    if (op_low > 0xF || !table0[op_low]) {
+        HandleInvalidOpcode();
+        return;
+    }
+    ((*this).*(table0[op_low]))();
 }
 
 void Chip8::Table8() {
-    ((*this).*(table8[opcode & 0x000Fu]))();
+    uint8_t op_low = opcode & 0x000Fu;
+    if (op_low > 0xF || !table8[op_low]) {
+        HandleInvalidOpcode();
+        return;
+    }
+    ((*this).*(table8[op_low]))();
 }
 
 void Chip8::TableE() {
-    ((*this).*(tableE[opcode & 0x000Fu]))();
+    uint8_t op_low = opcode & 0x000Fu;
+    if (op_low > 0xF || !tableE[op_low]) {
+        HandleInvalidOpcode();
+        return;
+    }
+    ((*this).*(tableE[op_low]))();
 }
 
 void Chip8::TableF() {
-    ((*this).*(tableF[opcode & 0x00FFu]))();
+    uint8_t op_low = opcode & 0x00FFu;
+    if (op_low > 0x65 || !tableF[op_low]) {
+        HandleInvalidOpcode();
+        return;
+    }
+    ((*this).*(tableF[op_low]))();
 }
 
-void Chip8::OP_NULL() 
-{}
+void Chip8::OP_NULL() {
+    static int invalidCount = 0;
+    if (++invalidCount > 10) {
+        std::cerr << "TOO MANY INVALID OPS! Resetting...\n";
+        Reset();
+        invalidCount = 0;
+    }
+}
 
 Chip8::Chip8() 
     : randGen(std::chrono::system_clock::now().time_since_epoch().count())
-
 {
     pc = START_ADDRESS;
+    opcode = 0;
+    index = 0;
+    sp = 0;
+    delayTimer = 0;
+    soundTimer = 0;
+    drawFlag = false;
 
+    // Guard pages
+    memory[0x000] = 0xFF;
+    memory[0x1FF] = 0xFF;
+    memory[MEMORY_SIZE-1] = 0xFF;
+    
+    // Initialize memory, registers, and other buffers
+    memset(registers, 0, sizeof(registers));
+    memset(stack, 0, sizeof(stack));
+    memset(memory, 0, sizeof(memory));
+    memset(video, 0, sizeof(video));
+    memset(keypad, 0, sizeof(keypad));
+
+    // Initialize stack with safe values
+    for (int i = 0; i < 16; i++) {
+        stack[i] = START_ADDRESS;
+    }
+
+    // Load fontset
     for (unsigned int i=0; i<FONTSET_SIZE; ++i) {
         memory[FONTSET_START_ADDRESS + i] = fontset[i];
     }
 
-    randByte = std::uniform_int_distribution<uint8_t>(0,255U);
+    randByte = std::uniform_int_distribution<uint8_t>(0, 255U);
 
+    // Initialize all function pointers to OP_NULL first
+    for (int i = 0; i <= 0xF; i++) {
+        table[i] = &Chip8::OP_NULL;
+    }
+    
+    for (int i = 0; i <= 0xF; i++) {
+        table0[i] = &Chip8::OP_NULL;
+        table8[i] = &Chip8::OP_NULL; 
+        tableE[i] = &Chip8::OP_NULL;
+    }
+    
+    for (int i = 0; i <= 0x65; i++) {
+        tableF[i] = &Chip8::OP_NULL;
+    }
+
+    // Assign specific opcode handlers
     table[0x0] = &Chip8::Table0;
     table[0x1] = &Chip8::OP_1nnn;
     table[0x2] = &Chip8::OP_2nnn;
@@ -108,12 +254,6 @@ Chip8::Chip8()
     table[0xE] = &Chip8::TableE;
     table[0xF] = &Chip8::TableF;
 
-    for (size_t i=0; i <= 0xE; i++) {
-        table0[i] = &Chip8::OP_NULL;
-        table8[i] = &Chip8::OP_NULL;
-        tableE[i] = &Chip8::OP_NULL;
-    }
-
     table0[0x0] = &Chip8::OP_00E0;
     table0[0xE] = &Chip8::OP_00EE;
 
@@ -129,10 +269,6 @@ Chip8::Chip8()
 
     tableE[0x1] = &Chip8::OP_ExA1;
     tableE[0xE] = &Chip8::OP_Ex9E;
-
-    for (size_t i=0; i <= 0x65; i++) {
-        tableF[i] = &Chip8::OP_NULL;
-    }
 
     tableF[0x07] = &Chip8::OP_Fx07;
     tableF[0x0A] = &Chip8::OP_Fx0A;
@@ -150,13 +286,22 @@ void Chip8::OP_00E0() {
 }
 
 void Chip8::OP_00EE() {
+    if (sp == 0) {
+        std::cerr << "Stack underflow at 00EE!\n";
+        Reset();
+        return;
+    }
     --sp;
     pc = stack[sp];
 }
 
 void Chip8::OP_1nnn() {
     uint16_t address = opcode & 0x0FFFu;
-    pc = address;
+    if (address >= 0x200 && address < 0xFFF) {
+        pc = address;
+    } else {
+        pc += 2;
+    }
 }
 
 void Chip8::OP_2nnn() {
@@ -189,7 +334,7 @@ void Chip8::OP_5xy0() {
     uint8_t Vy = (opcode & 0x00F0u) >> 4u;
 
     if (registers[Vx] == registers[Vy]) {
-
+        pc += 2;
     }
 }
 
@@ -305,7 +450,13 @@ void Chip8::OP_Annn() {
 
 void Chip8::OP_Bnnn() {
     uint16_t address = opcode & 0x0FFFu;
-    pc = registers[0] + address;
+    uint16_t target = (registers[0] + address) % MEMORY_SIZE;
+
+    if (target >= START_ADDRESS && target < MEMORY_SIZE - 1) {
+        pc = target;
+    } else {
+        std::cerr << "Invalid jump target: 0x" << std::hex << target << "\n";
+    }
 }
 
 void Chip8::OP_Cxkk() {
@@ -320,26 +471,37 @@ void Chip8::OP_Dxyn() {
     uint8_t Vy = (opcode & 0x00F0u) >> 4u;
     uint8_t height = opcode & 0x000Fu;
 
+    if (index + height >= MEMORY_SIZE) {
+        std::cerr << "DRAW: Invalid sprite memory access\n";
+        return;
+    }
+
     uint8_t xPos = registers[Vx] % VIDEO_WIDTH;
     uint8_t yPos = registers[Vy] % VIDEO_HEIGHT;
 
     registers[0xF] = 0;
+    bool pixelChanged = false;  
 
-    for (unsigned int row=0; row < height; ++row) {
+    for (unsigned int row = 0; row < height; ++row) {
         uint8_t spriteByte = memory[index + row];
 
-        for (unsigned int col=0; col < 8; ++col) {
+        for (unsigned int col = 0; col < 8; ++col) {
+            if (xPos + col >= VIDEO_WIDTH || yPos + row >= VIDEO_HEIGHT)
+                continue;
+
             uint8_t spritePixel = spriteByte & (0x80u >> col);
             uint32_t* screenPixel = &video[(yPos + row) * VIDEO_WIDTH + (xPos + col)];
 
             if (spritePixel) {
-                if (*screenPixel == 0xFFFFFFFF) {
+                if (*screenPixel == 0xFFFFFFFF)
                     registers[0xF] = 1;
-                }
+                
                 *screenPixel ^= 0xFFFFFFFF;
+                pixelChanged = true;
             }
         }
     }
+    drawFlag = pixelChanged;  
 }
 
 void Chip8::OP_Ex9E() {
@@ -417,14 +579,23 @@ void Chip8::OP_Fx18() {
 
 void Chip8::OP_Fx1E() {
     uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+    uint16_t oldIndex = index;
     index += registers[Vx];
+    
+    if (index < oldIndex || index >= MEMORY_SIZE) {
+        std::cerr << "Index register overflow: 0x" << std::hex << index << "\n";
+        index %= MEMORY_SIZE;
+    }
+    
+    if (index < FONTSET_START_ADDRESS) {
+        index = FONTSET_START_ADDRESS;
+    }
 }
 
 void Chip8::OP_Fx29() {
     uint8_t Vx = (opcode & 0x0F00u) >> 8u;
-    uint8_t digit = registers[Vx];
-    
-    index = FONTSET_START_ADDRESS + (5*digit);
+    uint8_t digit = registers[Vx] & 0x0F;  
+    index = FONTSET_START_ADDRESS + (5 * digit);
 }
 
 void Chip8::OP_Fx33() {
@@ -442,14 +613,24 @@ void Chip8::OP_Fx33() {
 
 void Chip8::OP_Fx55() {
     uint8_t Vx = (opcode & 0x0F00u) >> 8u;
-
-    for (uint8_t i=0; i <= Vx; ++i) {
+    
+    if ((index + Vx) >= MEMORY_SIZE) {
+        std::cerr << "ERROR: Memory store out of bounds\n";
+        return;
+    }
+    
+    for (uint8_t i = 0; i <= Vx; ++i) {
         memory[index + i] = registers[i];
     }
 }
 
 void Chip8::OP_Fx65() {
     uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+
+    if ((index + Vx) >= MEMORY_SIZE) {
+        std::cerr << "ERROR: Memory store out of bounds\n";
+        return;
+    }
 
     for (uint8_t i=0; i <= Vx; ++i) {
         registers[i] = memory[index + i];

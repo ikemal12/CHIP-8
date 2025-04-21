@@ -1,11 +1,11 @@
 #pragma once
-
 #include <random>
 #include <cstdint>
 
 const unsigned int VIDEO_WIDTH = 64;
 const unsigned int VIDEO_HEIGHT = 32;
 const unsigned int MEMORY_SIZE = 4096;
+const unsigned int START_ADDRESS = 0x200;
 const unsigned int REGISTER_COUNT = 16;
 const unsigned int KEY_COUNT = 16;
 const unsigned int STACK_LEVELS = 16;
@@ -15,10 +15,13 @@ class Chip8 {
     public:
         uint8_t keypad[KEY_COUNT]{};
         uint32_t video[VIDEO_WIDTH * VIDEO_HEIGHT]{};
+        bool drawFlag{false};
         
         Chip8();
         void LoadROM(char const* filename);
         void Cycle();
+        void HandleInvalidOpcode();
+        void Reset();
 
     private:
         uint8_t registers[REGISTER_COUNT]{};
@@ -77,11 +80,17 @@ class Chip8 {
         void OP_NULL();
 
         typedef void (Chip8::*Chip8Func)();
-            Chip8Func table[0xF + 1];
-            Chip8Func table0[0xE + 1];
-            Chip8Func table8[0xE + 1];
-            Chip8Func tableE[0xE + 1];
-            Chip8Func tableF[0x65 + 1];
+            Chip8Func table[16];      
+            Chip8Func table0[16];    
+            Chip8Func table8[16];     
+            Chip8Func tableE[16];     
+            Chip8Func tableF[0x66];   
 
 };
+
+template <typename T>
+constexpr const T& clamp(const T& v, const T& lo, const T& hi) {
+    return (v < lo) ? lo : (hi < v) ? hi : v;
+}
+
     

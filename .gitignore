@@ -5,3 +5,4 @@ src/*.ch8
 /src/glad/
 /src/gl.c 
 /include/
+build/
