@@ -6,3 +6,4 @@ src/*.ch8
 /src/gl.c 
 /include/
 build/
+*.ch8

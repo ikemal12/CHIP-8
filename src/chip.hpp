@@ -14,7 +14,7 @@ class Chip8 {
 
     public:
         uint8_t keypad[KEY_COUNT]{};
-        uint32_t video[VIDEO_WIDTH * VIDEO_HEIGHT]{};
+        uint8_t video[VIDEO_WIDTH * VIDEO_HEIGHT]{};
         bool drawFlag{false};
         
         Chip8();

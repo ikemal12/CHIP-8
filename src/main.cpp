@@ -1,3 +1,4 @@
+#define SDL_MAIN_HANDLED
 #undef main
 #include "chip.hpp"
 #include "platform.hpp"

@@ -7,7 +7,6 @@
 #include <iostream>
 #include <algorithm>
 
-const unsigned int START_ADDRESS = 0x200;
 const unsigned int FONTSET_SIZE = 80;
 const unsigned int FONTSET_START_ADDRESS = 0x50;
 
@@ -70,14 +69,12 @@ void Chip8::LoadROM(char const* filename) {
     }
     std::cout << "\n";
 
-    // Load the entire ROM
     for (long i = 0; i < size; ++i) {
         memory[START_ADDRESS + i] = buffer[i];
     }
 
-    // Verify the last few bytes
     std::cout << "Last 16 bytes of ROM:\n";
-    long start = std::max<uint16_t>(0L, size - 16);
+    long start = std::max(0L, static_cast<long>(size) - 16);
     for (long i = start; i < size; ++i) {
         printf("%02X ", static_cast<unsigned char>(buffer[i]));
         if ((i + 1) % 8 == 0) std::cout << " ";
@@ -87,7 +84,6 @@ void Chip8::LoadROM(char const* filename) {
     delete[] buffer;
     std::cout << "ROM loaded successfully\n";
 
-    // Additional verification
     std::cout << "Verifying memory copy (first 16 bytes):\n";
     for (long i = 0; i < std::min<uint16_t>(size, 16L); ++i) {
         printf("%02X ", memory[START_ADDRESS + i]);
@@ -118,6 +114,12 @@ void Chip8::Cycle() {
     if (sp >= 16) {
         std::cerr << "STACK OVERFLOW! Resetting...\n";
         Reset();
+        return;
+    }
+
+    if ((opcode & 0xFF00) == 0xF600 && (opcode & 0x00FF) > 0x65) {
+        std::cerr << "Detected problematic opcode pattern: " << std::hex << opcode << "\n";
+        HandleInvalidOpcode();
         return;
     }
 
@@ -197,31 +199,26 @@ Chip8::Chip8()
     soundTimer = 0;
     drawFlag = false;
 
-    // Guard pages
     memory[0x000] = 0xFF;
     memory[0x1FF] = 0xFF;
     memory[MEMORY_SIZE-1] = 0xFF;
     
-    // Initialize memory, registers, and other buffers
     memset(registers, 0, sizeof(registers));
     memset(stack, 0, sizeof(stack));
     memset(memory, 0, sizeof(memory));
     memset(video, 0, sizeof(video));
     memset(keypad, 0, sizeof(keypad));
 
-    // Initialize stack with safe values
     for (int i = 0; i < 16; i++) {
         stack[i] = START_ADDRESS;
     }
 
-    // Load fontset
     for (unsigned int i=0; i<FONTSET_SIZE; ++i) {
         memory[FONTSET_START_ADDRESS + i] = fontset[i];
     }
 
     randByte = std::uniform_int_distribution<uint8_t>(0, 255U);
 
-    // Initialize all function pointers to OP_NULL first
     for (int i = 0; i <= 0xF; i++) {
         table[i] = &Chip8::OP_NULL;
     }
@@ -236,7 +233,6 @@ Chip8::Chip8()
         tableF[i] = &Chip8::OP_NULL;
     }
 
-    // Assign specific opcode handlers
     table[0x0] = &Chip8::Table0;
     table[0x1] = &Chip8::OP_1nnn;
     table[0x2] = &Chip8::OP_2nnn;
@@ -450,13 +446,7 @@ void Chip8::OP_Annn() {
 
 void Chip8::OP_Bnnn() {
     uint16_t address = opcode & 0x0FFFu;
-    uint16_t target = (registers[0] + address) % MEMORY_SIZE;
-
-    if (target >= START_ADDRESS && target < MEMORY_SIZE - 1) {
-        pc = target;
-    } else {
-        std::cerr << "Invalid jump target: 0x" << std::hex << target << "\n";
-    }
+    pc = address + registers[0];
 }
 
 void Chip8::OP_Cxkk() {
@@ -480,7 +470,7 @@ void Chip8::OP_Dxyn() {
     uint8_t yPos = registers[Vy] % VIDEO_HEIGHT;
 
     registers[0xF] = 0;
-    bool pixelChanged = false;  
+    bool pixelChanged = false;
 
     for (unsigned int row = 0; row < height; ++row) {
         uint8_t spriteByte = memory[index + row];
@@ -490,18 +480,18 @@ void Chip8::OP_Dxyn() {
                 continue;
 
             uint8_t spritePixel = spriteByte & (0x80u >> col);
-            uint32_t* screenPixel = &video[(yPos + row) * VIDEO_WIDTH + (xPos + col)];
+            uint8_t* screenPixel = &video[(yPos + row) * VIDEO_WIDTH + (xPos + col)];
 
             if (spritePixel) {
-                if (*screenPixel == 0xFFFFFFFF)
+                if (*screenPixel == 1)
                     registers[0xF] = 1;
-                
-                *screenPixel ^= 0xFFFFFFFF;
+
+                *screenPixel ^= 1;
                 pixelChanged = true;
             }
         }
     }
-    drawFlag = pixelChanged;  
+    drawFlag = pixelChanged;
 }
 
 void Chip8::OP_Ex9E() {
