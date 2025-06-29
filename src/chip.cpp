@@ -31,8 +31,6 @@ uint8_t fontset[FONTSET_SIZE] = {
 
 
 void Chip8::LoadROM(char const* filename) {
-    std::cout << "Attempting to load ROM: " << filename << "\n";
-
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
     
     if (!file.is_open()) {
@@ -41,7 +39,6 @@ void Chip8::LoadROM(char const* filename) {
     }
 
     std::streampos size = file.tellg();
-    std::cout << "ROM file size: " << size << " bytes\n";
 
     if (size <= 0) {
         std::cerr << "ERROR: ROM file is empty or invalid\n";
@@ -59,45 +56,16 @@ void Chip8::LoadROM(char const* filename) {
     file.read(buffer, size);
     file.close();
 
-    std::cout << "Loading ROM into memory at address 0x" << std::hex << START_ADDRESS << "\n";
-    std::cout << "First 16 bytes of ROM:\n";
-
     for (long i = 0; i < std::min<uint16_t>(size, 16L); ++i) {
         memory[START_ADDRESS + i] = buffer[i];
-        printf("%02X ", static_cast<unsigned char>(buffer[i]));
-        if ((i + 1) % 8 == 0) std::cout << " ";
     }
-    std::cout << "\n";
-
-    for (long i = 0; i < size; ++i) {
-        memory[START_ADDRESS + i] = buffer[i];
-    }
-
-    std::cout << "Last 16 bytes of ROM:\n";
-    long start = std::max(0L, static_cast<long>(size) - 16);
-    for (long i = start; i < size; ++i) {
-        printf("%02X ", static_cast<unsigned char>(buffer[i]));
-        if ((i + 1) % 8 == 0) std::cout << " ";
-    }
-    std::cout << "\n";
 
     delete[] buffer;
-    std::cout << "ROM loaded successfully\n";
-
-    std::cout << "Verifying memory copy (first 16 bytes):\n";
-    for (long i = 0; i < std::min<uint16_t>(size, 16L); ++i) {
-        printf("%02X ", memory[START_ADDRESS + i]);
-        if ((i + 1) % 8 == 0) std::cout << " ";
-    }
-    std::cout << "\n";
 }
 
 void Chip8::Cycle() {
     pc = std::clamp(pc, static_cast<uint16_t>(START_ADDRESS), static_cast<uint16_t>(MEMORY_SIZE - 2));
     opcode = (memory[pc] << 8u) | memory[pc + 1];
-    printf("PC: %04X OP: %04X I: %04X SP: %X DT: %d ST: %d\n", 
-           pc, opcode, index, sp, delayTimer, soundTimer);
-    
     pc += 2;
     
     uint8_t op_high = (opcode & 0xF000) >> 12;
@@ -198,20 +166,12 @@ Chip8::Chip8()
     delayTimer = 0;
     soundTimer = 0;
     drawFlag = false;
-
-    memory[0x000] = 0xFF;
-    memory[0x1FF] = 0xFF;
-    memory[MEMORY_SIZE-1] = 0xFF;
     
     memset(registers, 0, sizeof(registers));
     memset(stack, 0, sizeof(stack));
     memset(memory, 0, sizeof(memory));
     memset(video, 0, sizeof(video));
     memset(keypad, 0, sizeof(keypad));
-
-    for (int i = 0; i < 16; i++) {
-        stack[i] = START_ADDRESS;
-    }
 
     for (unsigned int i=0; i<FONTSET_SIZE; ++i) {
         memory[FONTSET_START_ADDRESS + i] = fontset[i];

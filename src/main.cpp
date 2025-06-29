@@ -24,9 +24,6 @@ int main(int argc, char** argv) {
     chip8.LoadROM(romFilename);
     static uint32_t pixels[VIDEO_WIDTH * VIDEO_HEIGHT];
     int videoPitch = sizeof(uint32_t) * VIDEO_WIDTH;
-    
-    std::cout << "Emulation starting..." << std::endl;
-    
     auto lastCycleTime = std::chrono::high_resolution_clock::now();
     bool quit = false;
 
@@ -39,16 +36,6 @@ int main(int argc, char** argv) {
         if (dt > cycleDelay) {
             lastCycleTime = currentTime;
             chip8.Cycle();
-
-            if (chip8.drawFlag) {
-                std::cout << "Draw flag is set, updating display\n";
-                // Check first few pixels in video buffer
-                std::cout << "First 10 pixels: ";
-                for (int i = 0; i < 10; i++) {
-                    std::cout << (chip8.video[i] ? "■" : "□");
-                }
-                std::cout << std::endl;
-            }
             
             if (chip8.drawFlag) {
                 for (int i = 0; i < VIDEO_WIDTH * VIDEO_HEIGHT; i++) {
@@ -62,6 +49,6 @@ int main(int argc, char** argv) {
             }
         }
     }
-
+    
     return 0;   
 }

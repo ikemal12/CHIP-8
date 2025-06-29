@@ -38,8 +38,6 @@ Platform::Platform(char const* title, int windowWidth, int windowHeight, int tex
         std::cerr << "Texture creation failed: " << SDL_GetError() << std::endl;
         exit(1);
     }
-    
-    std::cout << "SDL initialization successful" << std::endl;
 }
 
 Platform::~Platform() {
