@@ -1,5 +1,7 @@
 # CHIP-8 Emulator
 
+https://github.com/user-attachments/assets/5300353f-e5d3-4c4d-9c1a-f6a54defdbbb
+
 ## Overview
 
 * 16 8-bit Registers
