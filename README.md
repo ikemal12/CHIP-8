@@ -1,6 +1,6 @@
 # CHIP-8 Emulator
 
-https://github.com/user-attachments/assets/5300353f-e5d3-4c4d-9c1a-f6a54defdbbb
+https://github.com/user-attachments/assets/3a055dac-595a-4d45-a0a8-faed9fdaf30f
 
 ## Overview
 
